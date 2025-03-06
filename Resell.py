@@ -3,7 +3,6 @@ from tkinter import ttk
 from tkinter import messagebox
 from tkinter import simpledialog
 from datetime import datetime
-
 import sqlite3
 
 # Function to create a database and a table
@@ -34,7 +33,6 @@ def view_data():
 
 # Function to add data to the database
 def add_data():
-
     item_name = entry_item_name.get()
     bought_price = entry_bought_price.get()
     sold_price = entry_sold_price.get()
@@ -63,6 +61,7 @@ def add_data():
         conn.commit()
         conn.close()
         
+        messagebox.showinfo("Success", "Item added successfully!")
         entry_item_name.delete(0, tk.END)  # Clear the item name input field
         entry_bought_price.delete(0, tk.END)  # Clear the bought price field
         entry_sold_price.delete(0, tk.END)  # Clear the sold price field
@@ -81,6 +80,13 @@ def calculate_total_profit():
     
     # Update the label to show the total profit
     label_total_profit.config(text=f"Total Profit: ${total_profit:.2f}")
+    if total_profit > 0:
+        label_total_profit.config(text=f"Total Profit: ${total_profit:.2f}", fg="green")
+    elif total_profit < 0:
+        label_total_profit.config(text=f"Total Profit: ${total_profit:.2f}", fg="red")
+    else:
+        label_total_profit.config(text="Total Profit: $0.00", fg="yellow")
+
 
 def calculate_total_debt():
     conn = sqlite3.connect('resell_tracker.db')
@@ -102,41 +108,40 @@ def load_data():
 
     data = view_data()
     for row in data:
-        # Determine the row color based on the sold status and profit
-        if row[3] is not None:  # sold_price is not None means the item is sold
-            if row[3] > row[2]:  # Sold at a profit
-                row_color = "lightgreen"
-            else:  # Sold at a loss
-                row_color = "lightcoral"
-        else:  # Not sold
-            row_color = "lightyellow"
+        # Insert the row into the Treeview without color tags
+        item_name = row[1]
+        bought_price = f"${row[2]:.2f}"
+        sold_price = f"${row[3] if row[3] is not None else 'Not Sold'}"
+        profit = f"${row[3] - row[2]:.2f}" if row[3] is not None else "Not Sold"
+        sold_date = row[4] if row[4] is not None else 'Not Sold'
 
-        # Insert the row into the Treeview with the color tag applied
-        treeview.insert("", "end", values=(row[1], f"${row[2]:.2f}", 
-                                          f"${row[3] if row[3] is not None else 'Not Sold'}", 
-                                          f"${row[3] - row[2]:.2f}" if row[3] is not None else "Not Sold", 
-                                          row[4] if row[4] is not None else 'Not Sold'),
-                        tags=(row_color,))  # Apply the color tag based on the status
-    
+        # Add the item to the treeview, applying color based on conditions
+        tag = ""
+        if row[3] is None:  # Not Sold items
+            tag = "not_sold"
+        elif row[3] and row[3] > row[2]:  # Profit made
+            tag = "profit"
+        elif row[3] and row[3] < row[2]:  # Loss made
+            tag = "loss"
+
+        treeview.insert("", "end", values=(item_name, bought_price, sold_price, profit, sold_date), tags=(tag,))
+
     calculate_total_profit()
     calculate_total_debt()
 
 # Function to handle double-click event on a cell
 def on_double_click(event):
-    # Get the item clicked in the Treeview
     item = treeview.selection()
     if not item:
         return  # If no item is selected, do nothing
 
-    # Get the item_id (from first column which should hold the item name, or store item_id)
     item_id = treeview.item(item, "values")[0]  # Get the item name or id from the first column
-    item_id = get_item_id_from_db(item_id)  # Fetch the actual ID from the database based on item name or description
+    item_id = get_item_id_from_db(item_id)  # Fetch the actual ID from the database based on item name
 
     if not item_id:
         messagebox.showwarning("Error", "Item ID not found in the database.")
         return
 
-    # Get the column clicked
     col_id = treeview.identify_column(event.x)
     column = int(col_id.split('#')[1]) - 1  # Convert column number to zero-based index
 
@@ -153,7 +158,7 @@ def on_double_click(event):
         if new_value:
             treeview.item(item, values=(treeview.item(item, "values")[0], f"${new_value:.2f}") + treeview.item(item, "values")[2:])
             update_database(item_id, "bought_price", new_value)
-            update_profit(item_id)  # Recalculate profit after bought price update
+            update_profit(item_id)
 
     elif column == 2:  # Sold Price column
         current_value = treeview.item(item, "values")[2]
@@ -161,108 +166,7 @@ def on_double_click(event):
         if new_value:
             treeview.item(item, values=(treeview.item(item, "values")[0], treeview.item(item, "values")[1], f"${new_value:.2f}") + treeview.item(item, "values")[3:])
             update_database(item_id, "sold_price", new_value)
-            update_profit(item_id)  # Recalculate profit after sold price update
-
-    elif column == 3:  # Profit column
-        current_value = treeview.item(item, "values")[3]
-        new_value = simple_input(f"Edit Profit (Current: {current_value})", float)
-        if new_value:
-            treeview.item(item, values=(treeview.item(item, "values")[0], treeview.item(item, "values")[1], treeview.item(item, "values")[2], f"${new_value:.2f}") + treeview.item(item, "values")[4:])
-            update_database(item_id, "profit", new_value)
-
-    elif column == 4:  # Sold Date column
-        current_value = treeview.item(item, "values")[4]
-        new_value = simple_input(f"Edit Sold Date (Current: {current_value})")
-        if new_value:
-            treeview.item(item, values=(treeview.item(item, "values")[0], treeview.item(item, "values")[1], treeview.item(item, "values")[2], treeview.item(item, "values")[3], new_value))
-            update_database(item_id, "sold_date", new_value)
-    # Get the item clicked in the Treeview
-    item = treeview.selection()
-    if not item:
-        return  # If no item is selected, do nothing
-
-    # Get the item_id (from first column which should hold the item name, or store item_id)
-    item_id = treeview.item(item, "values")[0]  # Get the item name or id from the first column
-    item_id = get_item_id_from_db(item_id)  # Fetch the actual ID from the database based on item name or description
-
-    if not item_id:
-        messagebox.showwarning("Error", "Item ID not found in the database.")
-        return
-
-    # Get the column clicked
-    col_id = treeview.identify_column(event.x)
-    column = int(col_id.split('#')[1]) - 1  # Convert column number to zero-based index
-
-    if column == 0:  # Item Name column
-        current_value = treeview.item(item, "values")[0]
-        new_value = simple_input(f"Edit Item Name (Current: {current_value})")
-        if new_value:
-            treeview.item(item, values=(new_value, ) + treeview.item(item, "values")[1:])
-            update_database(item_id, "item_name", new_value)
-
-    elif column == 1:  # Bought Price column
-        current_value = treeview.item(item, "values")[1]
-        new_value = simple_input(f"Edit Bought Price (Current: {current_value})", float)
-        if new_value:
-            treeview.item(item, values=(treeview.item(item, "values")[0], f"${new_value:.2f}") + treeview.item(item, "values")[2:])
-            update_database(item_id, "bought_price", new_value)
-            update_profit(item_id)  # Recalculate profit
-
-    elif column == 2:  # Sold Price column
-        current_value = treeview.item(item, "values")[2]
-        new_value = simple_input(f"Edit Sold Price (Current: {current_value})", float)
-        if new_value:
-            treeview.item(item, values=(treeview.item(item, "values")[0], treeview.item(item, "values")[1], f"${new_value:.2f}") + treeview.item(item, "values")[3:])
-            update_database(item_id, "sold_price", new_value)
-            update_profit(item_id)  # Recalculate profit
-
-    elif column == 3:  # Profit column
-        current_value = treeview.item(item, "values")[3]
-        new_value = simple_input(f"Edit Profit (Current: {current_value})", float)
-        if new_value:
-            treeview.item(item, values=(treeview.item(item, "values")[0], treeview.item(item, "values")[1], treeview.item(item, "values")[2], f"${new_value:.2f}") + treeview.item(item, "values")[4:])
-            update_database(item_id, "profit", new_value)
-
-    elif column == 4:  # Sold Date column
-        current_value = treeview.item(item, "values")[4]
-        new_value = simple_input(f"Edit Sold Date (Current: {current_value})")
-        if new_value:
-            treeview.item(item, values=(treeview.item(item, "values")[0], treeview.item(item, "values")[1], treeview.item(item, "values")[2], treeview.item(item, "values")[3], new_value))
-            update_database(item_id, "sold_date", new_value)
-
-    # Get the item clicked in the Treeview
-    item = treeview.selection()
-    if not item:
-        return  # If no item is selected, do nothing
-
-    item_id = treeview.item(item, "values")[0]  # The item name (assuming it's in the first column)
-
-    # Get the column clicked
-    col_id = treeview.identify_column(event.x)
-    column = int(col_id.split('#')[1]) - 1  # Convert column number to zero-based index
-
-    if column == 0:  # Item Name column
-        current_value = treeview.item(item, "values")[0]
-        new_value = simple_input(f"Edit Item Name (Current: {current_value})")
-        if new_value:
-            treeview.item(item, values=(new_value, ) + treeview.item(item, "values")[1:])
-            update_database(item_id, "item_name", new_value)
-
-    elif column == 1:  # Bought Price column
-        current_value = treeview.item(item, "values")[1]
-        new_value = simple_input(f"Edit Bought Price (Current: {current_value})", float)
-        if new_value:
-            treeview.item(item, values=(treeview.item(item, "values")[0], f"${new_value:.2f}") + treeview.item(item, "values")[2:])
-            update_database(item_id, "bought_price", new_value)
-            update_profit(item_id)  # Recalculate profit after bought price update
-
-    elif column == 2:  # Sold Price column
-        current_value = treeview.item(item, "values")[2]
-        new_value = simple_input(f"Edit Sold Price (Current: {current_value})", float)
-        if new_value:
-            treeview.item(item, values=(treeview.item(item, "values")[0], treeview.item(item, "values")[1], f"${new_value:.2f}") + treeview.item(item, "values")[3:])
-            update_database(item_id, "sold_price", new_value)
-            update_profit(item_id)  # Recalculate profit after sold price update
+            update_profit(item_id)
 
     elif column == 3:  # Profit column
         current_value = treeview.item(item, "values")[3]
@@ -303,46 +207,17 @@ def update_profit(item_id):
     c.execute('SELECT bought_price, sold_price FROM items WHERE id = ?', (item_id,))
     result = c.fetchone()
 
-    # If no result is returned, handle the situation
     if result is None:
-        messagebox.showwarning("Database Error", "Item not found in the database.")
-        conn.close()
+        messagebox.showwarning("Error", "Item not found.")
         return
-    
+
     bought_price, sold_price = result
-    
-    if sold_price is not None:
-        profit = sold_price - bought_price
-    else:
-        profit = None  # Profit remains None if the item is unsold
-    
+    profit = sold_price - bought_price if sold_price is not None else None
+
     c.execute('UPDATE items SET profit = ? WHERE id = ?', (profit, item_id))
     conn.commit()
     conn.close()
 
-    # Reload data to reflect updated profit
-    load_data()    
-    conn = sqlite3.connect('resell_tracker.db')
-    c = conn.cursor()
-    c.execute('SELECT bought_price, sold_price FROM items WHERE id = ?', (item_id,))
-    result = c.fetchone()
-
-    # If no result is returned, handle the situation
-    if result is None:
-        messagebox.showwarning("Database Error", "Item not found in the database.")
-        conn.close()
-        return
-    
-    bought_price, sold_price = result
-    
-    if sold_price is not None:
-        profit = sold_price - bought_price
-    else:
-        profit = None  # Profit remains None if the item is unsold
-    
-    c.execute('UPDATE items SET profit = ? WHERE id = ?', (profit, item_id))
-    conn.commit()
-    conn.close()
 
 def get_item_id_from_db(item_name):
     conn = sqlite3.connect('resell_tracker.db')
@@ -354,66 +229,86 @@ def get_item_id_from_db(item_name):
         return result[0]  # Return the item_id
     return None  # Return None if no item is found
 
-# Set up the main application window
+
+# Creating the main window
 root = tk.Tk()
 root.title("Resell Tracker")
+root.geometry("800x600")  # Change the size as needed
 
-# Create the database and table
+# Create the database if not already created
 create_db()
 
-# Create input fields for adding data
-label_item_name = tk.Label(root, text="Enter Item Name:")
-label_item_name.pack(pady=5)
+# Create a frame for the add item and profit/debt labels
+# Frame for Item Name entry
+frame_item_name = tk.Frame(root)
+frame_item_name.pack(pady=5)
 
-entry_item_name = tk.Entry(root, width=50)
-entry_item_name.pack(pady=5)
+label_item_name = tk.Label(frame_item_name, text="Enter Item Name:")
+label_item_name.pack(side=tk.LEFT, padx=5)
 
-label_bought_price = tk.Label(root, text="Enter Bought Price:")
-label_bought_price.pack(pady=5)
+entry_item_name = tk.Entry(frame_item_name, width=50)
+entry_item_name.pack(side=tk.LEFT, padx=5)
 
-entry_bought_price = tk.Entry(root, width=50)
-entry_bought_price.pack(pady=5)
+# Frame for Bought Price entry
+frame_bought_price = tk.Frame(root)
+frame_bought_price.pack(pady=5)
 
-label_sold_price = tk.Label(root, text="Enter Sold Price (leave blank if not sold):")
-label_sold_price.pack(pady=5)
+label_bought_price = tk.Label(frame_bought_price, text="Enter Bought Price:")
+label_bought_price.pack(side=tk.LEFT, padx=5)
 
+entry_bought_price = tk.Entry(frame_bought_price, width=50)
+entry_bought_price.pack(side=tk.LEFT, padx=5)
 
-entry_sold_price = tk.Entry(root, width=50)
-entry_sold_price.pack(pady=5)
+# Frame for Sold Price entry
+frame_sold_price = tk.Frame(root)
+frame_sold_price.pack(pady=5)
 
-button_add = tk.Button(root, text="Add Item", command=add_data)
-button_add.pack(pady=10)
+label_sold_price = tk.Label(frame_sold_price, text="Enter Sold Price:")
+label_sold_price.pack(side=tk.LEFT, padx=5)
 
-label_total_profit = tk.Label(root, text="Total Profit: $0.00", font=("Arial", 14))
-label_total_profit.pack(pady=10)
+entry_sold_price = tk.Entry(frame_sold_price, width=50)
+entry_sold_price.pack(side=tk.LEFT, padx=5)
 
-label_total_debt = tk.Label(root, text="Total Debt: $0.00", font=("Arial", 14))
-label_total_debt.pack(pady=10)
+frame_buttons = tk.Frame(root)
+frame_buttons.pack(pady=10)
 
-# Create the Treeview widget (Excel-like table)
-columns = ("Item Name", "Bought Price", "Sold Price", "Profit")
-treeview = ttk.Treeview(root, columns=columns, show="headings", height=10)
+# Add Item button
+button_add = tk.Button(frame_buttons, text="Add Item", command=add_data)
+button_add.pack(side=tk.LEFT, padx=10)
 
-# Define the column headers
-for col in columns:
+# Load Data button
+button_load = tk.Button(frame_buttons, text="Load Data", command=load_data)
+button_load.pack(side=tk.LEFT, padx=10)
+
+frame_profit_debt = tk.Frame(root)
+frame_profit_debt.pack(pady=10)
+
+# Total Profit label
+label_total_profit = tk.Label(frame_profit_debt, text="Total Profit: $0.00", font=("Arial", 14))
+label_total_profit.pack(side=tk.LEFT, padx=10)
+
+# Total Debt label
+label_total_debt = tk.Label(frame_profit_debt, text="Total Debt: $0.00", font=("Arial", 14))
+label_total_debt.pack(side=tk.LEFT, padx=10)
+
+# Create the Treeview below
+treeview = ttk.Treeview(root, columns=("Item Name", "Bought Price", "Sold Price", "Profit"), show="headings")
+treeview.pack(padx=10, pady=10, fill="both", expand=True)
+
+# Create headings for the Treeview
+for col in treeview["columns"]:
     treeview.heading(col, text=col)
-    treeview.column(col, anchor="w", width=150)  # Width can be adjusted based on your data
 
-# Define styles for the rows (using tags)
-style = ttk.Style()
-style.configure("lightgreen", background="green")  # Green for sold items with profit
-style.configure("lightcoral", background="red")  # Red for sold items at a loss
-style.configure("lightyellow", background="yellow")  # Yellow for unsold items
+# Add some colors for specific tags
+treeview.tag_configure("not_sold", background="yellow2")  
+treeview.tag_configure("profit", background="springgreen2")
+treeview.tag_configure("loss", background="coral")
 
-treeview.pack(pady=10)
-
-# Bind double-click to edit the row
+# Bind double-click event to edit cell
 treeview.bind("<Double-1>", on_double_click)
 
-# Button to load data into the Treeview
-button_load = tk.Button(root, text="Load Data", command=load_data)
-button_load.pack(pady=5)
+# Load initial data
+load_data()
 
-# Start the app
-load_data()  # Load data on startup
+# Start the Tkinter main loop
 root.mainloop()
