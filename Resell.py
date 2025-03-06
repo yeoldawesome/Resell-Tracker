@@ -9,16 +9,49 @@ import sqlite3
 def create_db():
     conn = sqlite3.connect('resell_tracker.db')
     c = conn.cursor()
-    c.execute(''' 
-        CREATE TABLE IF NOT EXISTS items (  
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_name TEXT NOT NULL,
-            bought_price REAL NOT NULL,
-            sold_price REAL,
-            sold_date TEXT,
-            profit REAL
-        )
-    ''')
+    
+    # Check if the table exists
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='items'")
+    if c.fetchone() is not None:
+        # Check if the bought_date column exists
+        c.execute("PRAGMA table_info(items)")
+        columns = [column[1] for column in c.fetchall()]
+        if 'bought_date' not in columns:
+            # Create a new table with the updated schema
+            c.execute(''' 
+                CREATE TABLE IF NOT EXISTS items_new (  
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_name TEXT NOT NULL,
+                    bought_price REAL NOT NULL,
+                    sold_price REAL,
+                    sold_date TEXT,
+                    bought_date TEXT,
+                    profit REAL
+                )
+            ''')
+            # Copy data from the old table to the new table
+            c.execute('''
+                INSERT INTO items_new (id, item_name, bought_price, sold_price, sold_date, profit)
+                SELECT id, item_name, bought_price, sold_price, sold_date, profit FROM items
+            ''')
+            # Drop the old table
+            c.execute("DROP TABLE items")
+            # Rename the new table to the old table name
+            c.execute("ALTER TABLE items_new RENAME TO items")
+    else:
+        # Create the table with the updated schema
+        c.execute(''' 
+            CREATE TABLE IF NOT EXISTS items (  
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_name TEXT NOT NULL,
+                bought_price REAL NOT NULL,
+                sold_price REAL,
+                sold_date TEXT,
+                bought_date TEXT,
+                profit REAL
+            )
+        ''')
+    
     conn.commit()
     conn.close()
 
@@ -45,6 +78,7 @@ def add_data():
     item_name = entry_item_name.get()
     bought_price = entry_bought_price.get()
     sold_price = entry_sold_price.get()
+    bought_date = entry_bought_date.get()  # Get the bought date
 
     try:
         bought_price = float(bought_price)
@@ -70,14 +104,15 @@ def add_data():
         
         conn = sqlite3.connect('resell_tracker.db')
         c = conn.cursor()
-        c.execute('INSERT INTO items (item_name, bought_price, sold_price, sold_date, profit) VALUES (?, ?, ?, ?, ?)', 
-                  (item_name, bought_price, sold_price, sold_date, profit))
+        c.execute('INSERT INTO items (item_name, bought_price, sold_price, sold_date, bought_date, profit) VALUES (?, ?, ?, ?, ?, ?)', 
+                  (item_name, bought_price, sold_price, sold_date, bought_date, profit))
         conn.commit()
         conn.close()
         
         entry_item_name.delete(0, tk.END)  # Clear the item name input field
         entry_bought_price.delete(0, tk.END)  # Clear the bought price field
         entry_sold_price.delete(0, tk.END)  # Clear the sold price field
+        entry_bought_date.delete(0, tk.END)  # Clear the bought date field
         load_data()  # Reload the data in the Treeview
     else:
         messagebox.showwarning("Input Error", "Please enter a valid item and bought price.")
@@ -129,8 +164,9 @@ def load_data():
         item_name = row[1]
         bought_price = f"${row[2]:.2f}"
         sold_price = f"${row[3] if row[3] is not None else 'Not Sold'}"
-        profit = f"${row[3] - row[2]:.2f}" if row[3] is not None else "Not Sold"
+        profit = f"${row[6]:.2f}" if row[6] is not None else "Not Sold"
         sold_date = row[4] if row[4] is not None else 'Not Sold'
+        bought_date = row[5] if row[5] is not None else 'Not Provided'
 
         # Add the item to the treeview, applying color based on conditions
         tag = ""
@@ -141,7 +177,7 @@ def load_data():
         elif row[3] and row[3] < row[2]:  # Loss made
             tag = "loss"
 
-        treeview.insert("", "end", values=(item_name, bought_price, sold_price, profit, sold_date), tags=(tag,))
+        treeview.insert("", "end", values=(item_name, bought_price, sold_price, profit, sold_date, bought_date), tags=(tag,))
 
     calculate_total_profit()
     calculate_total_debt()
@@ -185,7 +221,7 @@ def on_item_edit(event):
     item = treeview.focus()  # Get the selected row
     column = treeview.identify_column(event.x)  # Get the column of the clicked cell
     
-    if column in ['#1', '#2', '#3', '#4', '#5']:  # Check if the clicked column is editable
+    if column in ['#1', '#2', '#3', '#4', '#5', '#6']:  # Check if the clicked column is editable
         col_index = int(column[1:]) - 1
         old_value = treeview.item(item, "values")[col_index]
 
@@ -218,8 +254,10 @@ def update_item(item, col_index, new_value):
     elif col_index == 3:  # Profit
         new_value = float(new_value)
         c.execute('UPDATE items SET profit = ? WHERE item_name = ?', (new_value, item_name))
-    elif col_index == 4:  # Show Date
+    elif col_index == 4:  # Sold Date
         c.execute('UPDATE items SET sold_date = ? WHERE item_name = ?', (new_value, item_name))
+    elif col_index == 5:  # Bought Date
+        c.execute('UPDATE items SET bought_date = ? WHERE item_name = ?', (new_value, item_name))
     
     conn.commit()
     conn.close()
@@ -283,6 +321,16 @@ label_sold_price.pack(side=tk.LEFT, padx=5)
 entry_sold_price = tk.Entry(frame_sold_price, width=50)
 entry_sold_price.pack(side=tk.LEFT, padx=5)
 
+# Frame for Bought Date entry
+frame_bought_date = tk.Frame(root)
+frame_bought_date.pack(pady=5)
+
+label_bought_date = tk.Label(frame_bought_date, text="Enter Bought Date (YYYY-MM-DD):")
+label_bought_date.pack(side=tk.LEFT, padx=5)
+
+entry_bought_date = tk.Entry(frame_bought_date, width=50)
+entry_bought_date.pack(side=tk.LEFT, padx=5)
+
 frame_buttons = tk.Frame(root)
 frame_buttons.pack(pady=10)
 
@@ -310,13 +358,14 @@ label_total_debt = tk.Label(frame_profit_debt, text="Total Debt: $0.00", font=("
 label_total_debt.pack(side=tk.LEFT, padx=10)
 
 # Create the Treeview below
-treeview = ttk.Treeview(root, columns=("Item Name", "Bought Price", "Sold Price", "Profit", "Show Date"), show="headings")
+treeview = ttk.Treeview(root, columns=("Item Name", "Bought Price", "Sold Price", "Profit", "Sold Date", "Bought Date"), show="headings")
 treeview.pack(padx=10, pady=10, fill="both", expand=False)
 treeview.column("Item Name", width=150)
 treeview.column("Bought Price", width=100)
 treeview.column("Sold Price", width=100)
 treeview.column("Profit", width=100)
-treeview.column("Show Date", width=80)
+treeview.column("Sold Date", width=80)
+treeview.column("Bought Date", width=80)
 
 # Create headings for the Treeview and bind the sorting function
 for col in treeview["columns"]:
