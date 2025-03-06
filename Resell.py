@@ -51,7 +51,7 @@ def add_data():
     item_name = entry_item_name.get()
     bought_price = entry_bought_price.get()
     sold_price = entry_sold_price.get()
-    bought_date = entry_bought_date.get()  # Get the bought date
+    bought_date = datetime.now().strftime('%Y-%m-%d')  # Automatically set today's date as bought date
 
     try:
         bought_price = float(bought_price)
@@ -85,7 +85,6 @@ def add_data():
         entry_item_name.delete(0, tk.END)  # Clear the item name input field
         entry_bought_price.delete(0, tk.END)  # Clear the bought price field
         entry_sold_price.delete(0, tk.END)  # Clear the sold price field
-        entry_bought_date.delete(0, tk.END)  # Clear the bought date field
         load_data()  # Reload the data in the Treeview
     else:
         messagebox.showwarning("Input Error", "Please enter a valid item and bought price.")
@@ -294,16 +293,6 @@ label_sold_price.pack(side=tk.LEFT, padx=5)
 entry_sold_price = tk.Entry(frame_sold_price, width=50)
 entry_sold_price.pack(side=tk.LEFT, padx=5)
 
-# Frame for Bought Date entry
-frame_bought_date = tk.Frame(root)
-frame_bought_date.pack(pady=5)
-
-label_bought_date = tk.Label(frame_bought_date, text="Enter Bought Date (YYYY-MM-DD):")
-label_bought_date.pack(side=tk.LEFT, padx=5)
-
-entry_bought_date = tk.Entry(frame_bought_date, width=50)
-entry_bought_date.pack(side=tk.LEFT, padx=5)
-
 frame_buttons = tk.Frame(root)
 frame_buttons.pack(pady=10)
 
@@ -333,12 +322,12 @@ label_total_debt.pack(side=tk.LEFT, padx=10)
 # Create the Treeview below
 treeview = ttk.Treeview(root, columns=("Item Name", "Bought Price", "Sold Price", "Profit", "Sold Date", "Bought Date"), show="headings")
 treeview.pack(padx=10, pady=10, fill="both", expand=False)
-treeview.column("Item Name", width=150)
-treeview.column("Bought Price", width=100)
-treeview.column("Sold Price", width=100)
-treeview.column("Profit", width=100)
-treeview.column("Sold Date", width=80)
-treeview.column("Bought Date", width=80)
+treeview.column("Item Name", width=80)
+treeview.column("Bought Price", width=50)
+treeview.column("Sold Price", width=50)
+treeview.column("Profit", width=50)
+treeview.column("Sold Date", width=50)
+treeview.column("Bought Date", width=50)
 
 # Create headings for the Treeview and bind the sorting function
 for col in treeview["columns"]:
