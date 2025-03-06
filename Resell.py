@@ -9,49 +9,22 @@ import sqlite3
 def create_db():
     conn = sqlite3.connect('resell_tracker.db')
     c = conn.cursor()
-    
-    # Check if the table exists
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='items'")
-    if c.fetchone() is not None:
-        # Check if the bought_date column exists
-        c.execute("PRAGMA table_info(items)")
-        columns = [column[1] for column in c.fetchall()]
-        if 'bought_date' not in columns:
-            # Create a new table with the updated schema
-            c.execute(''' 
-                CREATE TABLE IF NOT EXISTS items_new (  
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    item_name TEXT NOT NULL,
-                    bought_price REAL NOT NULL,
-                    sold_price REAL,
-                    sold_date TEXT,
-                    bought_date TEXT,
-                    profit REAL
-                )
-            ''')
-            # Copy data from the old table to the new table
-            c.execute('''
-                INSERT INTO items_new (id, item_name, bought_price, sold_price, sold_date, profit)
-                SELECT id, item_name, bought_price, sold_price, sold_date, profit FROM items
-            ''')
-            # Drop the old table
-            c.execute("DROP TABLE items")
-            # Rename the new table to the old table name
-            c.execute("ALTER TABLE items_new RENAME TO items")
-    else:
-        # Create the table with the updated schema
-        c.execute(''' 
-            CREATE TABLE IF NOT EXISTS items (  
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                item_name TEXT NOT NULL,
-                bought_price REAL NOT NULL,
-                sold_price REAL,
-                sold_date TEXT,
-                bought_date TEXT,
-                profit REAL
-            )
-        ''')
-    
+    c.execute(''' 
+        CREATE TABLE IF NOT EXISTS items (  
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_name TEXT NOT NULL,
+            bought_price REAL NOT NULL,
+            sold_price REAL,
+            sold_date TEXT,
+            bought_date TEXT,
+            profit REAL
+        )
+    ''')
+    # Add the bought_date column if it doesn't exist
+    c.execute("PRAGMA table_info(items)")
+    columns = [column[1] for column in c.fetchall()]
+    if 'bought_date' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN bought_date TEXT")
     conn.commit()
     conn.close()
 
