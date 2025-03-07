@@ -26,6 +26,10 @@ def add_data():
             messagebox.showwarning("Duplicate Item", f"The item '{item_name}' already exists in the database.")
             return
         
+        # Set bought_price to None if it is 0
+        if bought_price == 0:
+            bought_price = None
+        
         database.add_item(item_name, bought_price, sold_price)
         
         entry_item_name.delete(0, tk.END)
@@ -34,6 +38,40 @@ def add_data():
         load_data()
     else:
         messagebox.showwarning("Input Error", "Please enter a valid item and bought price.")
+
+def add_expenditure():
+    item_name = entry_item_name.get()
+    expenses = entry_bought_price.get()  # Use the bought price field for expenses
+    sold_price = entry_sold_price.get()
+
+    try:
+        expenses = float(expenses)
+        if sold_price:
+            sold_price = float(sold_price)
+        else:
+            sold_price = None
+    except ValueError:
+        messagebox.showwarning("Input Error", "Please enter valid prices.")
+        return
+
+    if item_name and expenses >= 0:
+        if database.check_duplicate_item(item_name):
+            messagebox.showwarning("Duplicate Item", f"The item '{item_name}' already exists in the database.")
+            return
+        
+        # Calculate profit for expenditure
+        profit = -expenses  # Set profit as negative value of expenses
+        if sold_price is not None:
+            profit = sold_price - expenses
+        
+        database.add_item(item_name, 0, sold_price, expenses=expenses, profit=profit)  # Set bought_price to 0 and add expenses
+        
+        entry_item_name.delete(0, tk.END)
+        entry_bought_price.delete(0, tk.END)
+        entry_sold_price.delete(0, tk.END)
+        load_data()
+    else:
+        messagebox.showwarning("Input Error", "Please enter a valid item and expenses.")
 
 def color_total_profit():
     total_profit = database.calculate_total_profit()
@@ -75,20 +113,33 @@ def load_data():
 
     data = database.view_data()
     for row in data:
+        # Replace None values with empty strings
+        row = ["" if value is None else value for value in row]
+        
+        # Set bought_price to empty string if it is 0
+        bought_price_index = columns.index("bought_price")
+        if row[bought_price_index] == 0:
+            row[bought_price_index] = ""
+        
         # Determine the tag based on the sold_price and bought_price
         sold_price = row[columns.index("sold_price")]
-        bought_price = row[columns.index("bought_price")]
+        expenses = row[columns.index("expenses")]
+
         profit = row[columns.index("profit")]
         tag = ""
-        if sold_price is None:
+        if sold_price == "":
             tag = "not_sold"
         elif profit > 0:
             tag = "profit"
         elif profit < 0:
             tag = "loss"
 
+        if (expenses != "") & (sold_price == ""):
+            tag = "loss"
         treeview.insert("", "end", values=row, tags=(tag,))
 
+
+    calculate_days()
     color_total_profit()
     color_total_debt()
 
@@ -169,9 +220,62 @@ def show_column(column):
         treeview.heading(column, text=hidden_columns[column], anchor=tk.W)
         del hidden_columns[column]
 
+def calculate_days():
+    data = database.view_data()
+    for row in data:
+        # Replace None values with empty strings
+        row = ["" if value is None else value for value in row]
+        
+        # Check if the sold date is empty
+        sold_date = row[database.get_column_names().index("sold_date")]
+        bought_date = row[database.get_column_names().index("bought_date")]
+        today = datetime.now().strftime('%Y-%m-%d')
+
+        if sold_date == "":
+            todays = datetime.now().strptime(today,'%Y-%m-%d')
+            bought_date_obj = datetime.strptime(bought_date, '%Y-%m-%d')
+            days_between = (todays - bought_date_obj).days
+            
+            # Update the cell with the calculated days
+            row[database.get_column_names().index("days_between")] = days_between
+            database.update_item(row[0], "days_between", days_between) 
+        else:
+            # Calculate the days between bought date and sold date
+            bought_date_obj = datetime.strptime(bought_date, '%Y-%m-%d')
+            sold_date_obj = datetime.strptime(sold_date, '%Y-%m-%d')
+            days_between = (sold_date_obj - bought_date_obj).days
+            
+            # Update the cell with the calculated days
+            row[database.get_column_names().index("days_between")] = days_between
+            database.update_item(row[0], "days_between", days_between)  # Assuming the first column is the item ID
+
+
 root = tk.Tk()
 root.title("Resell Tracker")
 root.geometry("800x600")
+
+# Create a menu bar
+menu_bar = tk.Menu(root)
+
+# Create a "File" menu
+file_menu = tk.Menu(menu_bar, tearoff=0)
+file_menu.add_command(label="Load Data", command=load_data)
+file_menu.add_separator()
+file_menu.add_command(label="Exit", command=root.quit)
+menu_bar.add_cascade(label="File", menu=file_menu)
+
+# Create a "Tools" menu
+tools_menu = tk.Menu(menu_bar, tearoff=0)
+tools_menu.add_command(label="Add Item", command=add_data)
+tools_menu.add_command(label="Delete Item", command=delete_item)
+tools_menu.add_command(label="Add Expenditure", command=add_expenditure)  # Add Expenditure option
+menu_bar.add_cascade(label="Tools", menu=tools_menu)
+
+# Add the menu bar to the root window
+root.config(menu=menu_bar)
+
+
+
 
 database.create_db()
 
@@ -187,7 +291,7 @@ entry_item_name.pack(side=tk.LEFT, padx=5)
 frame_bought_price = tk.Frame(root)
 frame_bought_price.pack(pady=5)
 
-label_bought_price = tk.Label(frame_bought_price, text="Enter Bought Price:")
+label_bought_price = tk.Label(frame_bought_price, text="Enter Bought Price / Expenses:")
 label_bought_price.pack(side=tk.LEFT, padx=5)
 
 entry_bought_price = tk.Entry(frame_bought_price, width=50)
@@ -213,6 +317,9 @@ button_load.pack(side=tk.LEFT, padx=10)
 
 button_delete = tk.Button(frame_buttons, text="Delete Item", command=delete_item)
 button_delete.pack(side=tk.LEFT, padx=10)
+
+button_add_expenditure = tk.Button(frame_buttons, text="Add Expenditure", command=add_expenditure)  # Add Expenditure button
+button_add_expenditure.pack(side=tk.LEFT, padx=10)
 
 frame_profit_debt = tk.Frame(root)
 frame_profit_debt.pack(pady=10)

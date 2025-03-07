@@ -12,6 +12,7 @@ SCHEMA = {
         ("expenses", "REAL"),  # Change type to REAL for calculations
         ("sold_price", "REAL"),
         ("bought_date", "TEXT"),
+        ("days_between", "TEXT"),
         ("sold_date", "TEXT"),
         ("profit", "REAL")
     ]
@@ -34,16 +35,19 @@ def create_db():
     conn.commit()
     conn.close()
 
-def add_item(item_name, bought_price, sold_price=None, bought_date=None, expenses=None, **kwargs):
+def add_item(item_name, bought_price, sold_price=None, bought_date=None, expenses=None, profit=None, **kwargs):
     if bought_date is None:
         bought_date = datetime.now().strftime('%Y-%m-%d')
-    profit = None
+    if profit is None:
+        if sold_price is not None:
+            expenses = float(expenses) if expenses is not None else 0
+            profit = sold_price - bought_price - expenses
+        else:
+            profit = -expenses if expenses is not None else 0
     sold_date = None
     if sold_price is not None:
-        expenses = float(expenses) if expenses is not None else 0
-        profit = sold_price - bought_price - expenses
         sold_date = datetime.now().strftime('%Y-%m-%d')
-    
+
     # Prepare the columns and values for insertion
     columns = ["item_name", "bought_price", "sold_price", "sold_date", "bought_date", "expenses", "profit"]
     values = [item_name, bought_price, sold_price, sold_date, bought_date, expenses, profit]
@@ -129,7 +133,7 @@ def update_item(item_id, column, new_value):
         print(f"Error: {e}")
     finally:
         conn.close()
-
+    
 def get_item_id_from_db(item_name):
     conn = sqlite3.connect('resell_tracker.db')
     c = conn.cursor()
@@ -158,3 +162,4 @@ def calculate_total_debt():
     total_debt = sum(bought_price[0] for bought_price in bought_prices)
     conn.close()
     return total_debt
+
