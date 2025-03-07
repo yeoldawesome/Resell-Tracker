@@ -1,0 +1,4 @@
+cogs
+gross profit
+buisness related expenses
+expenses per item to flip like fixing cost
