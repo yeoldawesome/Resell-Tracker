@@ -68,17 +68,23 @@ def load_data():
         treeview.column(col, width=100)
         treeview.heading(col, text=col, command=lambda _col=col: sort_treeview_column(treeview, _col, False))
 
+    # Hide the 'id' column by default
+    if "id" in columns:
+        treeview.column("id", width=0, stretch=tk.NO)
+        treeview.heading("id", text="", anchor=tk.W)
+
     data = database.view_data()
     for row in data:
         # Determine the tag based on the sold_price and bought_price
         sold_price = row[columns.index("sold_price")]
         bought_price = row[columns.index("bought_price")]
+        profit = row[columns.index("profit")]
         tag = ""
         if sold_price is None:
             tag = "not_sold"
-        elif sold_price > bought_price:
+        elif profit > 0:
             tag = "profit"
-        elif sold_price < bought_price:
+        elif profit < 0:
             tag = "loss"
 
         treeview.insert("", "end", values=row, tags=(tag,))
@@ -92,10 +98,13 @@ def delete_item():
         messagebox.showwarning("No Item Selected", "Please select an item to delete.")
         return
 
-    item_name = treeview.item(selected_item, "values")[0]
+    item_values = treeview.item(selected_item, "values")
+    item_name = item_values[treeview["columns"].index("item_name")]  # Dynamically get the item_name column index
+    print(f"Deleting item: {item_name}")  # Debugging information
     confirm = messagebox.askyesno("Delete Item", f"Are you sure you want to delete the item: {item_name}?")
     if confirm:
         item_id = database.get_item_id_from_db(item_name)
+        print(f"Item ID: {item_id}")  # Debugging information
         if item_id:
             database.delete_item(item_id)
             load_data()
@@ -106,16 +115,24 @@ def on_item_edit(event):
     item = treeview.focus()
     column = treeview.identify_column(event.x)
     
-    if column in ['#1', '#2', '#3', '#4', '#5', '#6']:
+    if column in [f'#{i+1}' for i in range(len(treeview["columns"]))]:
         col_index = int(column[1:]) - 1
         old_value = treeview.item(item, "values")[col_index]
         new_value = simpledialog.askstring("Edit Value", f"Enter new value for {treeview.heading(column)['text']}:", initialvalue=old_value)
 
         if new_value is not None and new_value != old_value:
-            item_id = database.get_item_id_from_db(treeview.item(item, "values")[0])
-            column_name = treeview.heading(column)['text'].lower().replace(" ", "_")
-            database.update_item(item_id, column_name, new_value)
-            load_data()
+            item_values = treeview.item(item, "values")
+            item_name = item_values[treeview["columns"].index("item_name")]  # Dynamically get the item_name column index
+            print(f"Item values: {item_values}")  # Debugging information
+            print(f"Editing item: {item_name}")  # Debugging information
+            item_id = database.get_item_id_from_db(item_name)
+            print(f"Item ID: {item_id}")  # Debugging information
+            if item_id is not None:
+                column_name = treeview.heading(column)['text'].lower().replace(" ", "_")
+                database.update_item(item_id, column_name, new_value)
+                load_data()
+            else:
+                print(f"Error: No item found with name {item_name}")
 
 def sort_treeview_column(treeview, col, reverse):
     data = [(treeview.set(child, col), child) for child in treeview.get_children('')]
