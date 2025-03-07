@@ -59,24 +59,29 @@ def load_data():
     for row in treeview.get_children():
         treeview.delete(row)
 
+    # Fetch column names from the database
+    columns = database.get_column_names()
+    treeview["columns"] = columns
+
+    # Create Treeview columns dynamically
+    for col in columns:
+        treeview.column(col, width=100)
+        treeview.heading(col, text=col, command=lambda _col=col: sort_treeview_column(treeview, _col, False))
+
     data = database.view_data()
     for row in data:
-        item_name = row[1]
-        bought_price = f"${row[2]:.2f}"
-        sold_price = f"${row[3] if row[3] is not None else 'Not Sold'}"
-        profit = f"${row[6]:.2f}" if row[6] is not None else "Not Sold"
-        sold_date = row[4] if row[4] is not None else 'Not Sold'
-        bought_date = row[5] if row[5] is not None else 'Not Provided'
-
+        # Determine the tag based on the sold_price and bought_price
+        sold_price = row[columns.index("sold_price")]
+        bought_price = row[columns.index("bought_price")]
         tag = ""
-        if row[3] is None:
+        if sold_price is None:
             tag = "not_sold"
-        elif row[3] and row[3] > row[2]:
+        elif sold_price > bought_price:
             tag = "profit"
-        elif row[3] and row[3] < row[2]:
+        elif sold_price < bought_price:
             tag = "loss"
 
-        treeview.insert("", "end", values=(item_name, bought_price, sold_price, profit, bought_date, sold_date), tags=(tag,))
+        treeview.insert("", "end", values=row, tags=(tag,))
 
     color_total_profit()
     color_total_debt()
@@ -128,12 +133,18 @@ def sort_treeview_column(treeview, col, reverse):
     treeview.heading(col, command=lambda: sort_treeview_column(treeview, col, not reverse))
 
 def show_column_menu(event):
+    column_menu.delete(0, tk.END)
+    for col in treeview["columns"]:
+        column_menu.add_command(label=f"Hide {col}", command=lambda _col=col: hide_column(_col))
+    column_menu.add_separator()
+    for col in hidden_columns:
+        column_menu.add_command(label=f"Show {col}", command=lambda _col=col: show_column(_col))
     column_menu.post(event.x_root, event.y_root)
 
 def hide_column(column):
     treeview.column(column, width=0, stretch=tk.NO)
-    treeview.heading(column, text="", anchor=tk.W)
     hidden_columns[column] = treeview.heading(column)["text"]
+    treeview.heading(column, text="", anchor=tk.W)
 
 def show_column(column):
     if column in hidden_columns:
@@ -195,17 +206,8 @@ label_total_profit.pack(side=tk.LEFT, padx=10)
 label_total_debt = tk.Label(frame_profit_debt, text="Total Debt: $0.00", font=("Arial", 14))
 label_total_debt.pack(side=tk.LEFT, padx=10)
 
-treeview = ttk.Treeview(root, columns=("Item Name", "Bought Price", "Sold Price", "Profit", "Bought Date", "Sold Date"), show="headings")
+treeview = ttk.Treeview(root, show="headings")
 treeview.pack(padx=10, pady=10, fill="both", expand=False)
-treeview.column("Item Name", width=100)
-treeview.column("Bought Price", width=100)
-treeview.column("Sold Price", width=100)
-treeview.column("Profit", width=100)
-treeview.column("Bought Date", width=80)
-treeview.column("Sold Date", width=80)
-
-for col in treeview["columns"]:
-    treeview.heading(col, text=col, command=lambda _col=col: sort_treeview_column(treeview, _col, False))
 
 treeview.tag_configure("not_sold", background="yellow2")
 treeview.tag_configure("profit", background="springgreen2")
@@ -216,12 +218,6 @@ treeview.bind('<Double-1>', on_item_edit)
 # Create a context menu for columns
 column_menu = tk.Menu(root, tearoff=0)
 hidden_columns = {}
-
-for col in treeview["columns"]:
-    column_menu.add_command(label=f"Hide {col}", command=lambda _col=col: hide_column(_col))
-column_menu.add_separator()
-for col in treeview["columns"]:
-    column_menu.add_command(label=f"Show {col}", command=lambda _col=col: show_column(_col))
 
 # Bind right-click to show the column menu
 treeview.bind("<Button-3>", show_column_menu)

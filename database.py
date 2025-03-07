@@ -7,10 +7,12 @@ SCHEMA = {
         ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
         ("item_name", "TEXT NOT NULL"),
         ("bought_price", "REAL NOT NULL"),
+        ("expenses", "TEXT"),
         ("sold_price", "REAL"),
         ("sold_date", "TEXT"),
         ("bought_date", "TEXT"),
         ("profit", "REAL")
+
     ]
 }
 
@@ -46,6 +48,14 @@ def view_data():
     rows = c.fetchall()
     conn.close()
     return rows
+
+def get_column_names():
+    conn = sqlite3.connect('resell_tracker.db')
+    c = conn.cursor()
+    c.execute('PRAGMA table_info(items)')
+    columns = [column[1] for column in c.fetchall()]
+    conn.close()
+    return columns
 
 def check_duplicate_item(item_name):
     conn = sqlite3.connect('resell_tracker.db')
