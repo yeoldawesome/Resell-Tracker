@@ -1,4 +1,5 @@
-COGS is done 
-gross profit
-buisness related expenses
-expenses per item to flip like fixing cost
+COGS is DONE 
+gross profit DONE 
+buisness related expenses DONE 
+expenses per item to flip like fixing cost DONE
+Pretier gui 
