@@ -138,6 +138,10 @@ def load_data():
             tag = "loss"
         treeview.insert("", "end", values=row, tags=(tag,))
 
+    # Apply tag colors
+    treeview.tag_configure("profit", background="lightgreen")
+    treeview.tag_configure("loss", background="lightcoral")
+    treeview.tag_configure("not_sold", background="yellow2")
 
     calculate_days()
     color_total_profit()
@@ -200,10 +204,13 @@ def sort_treeview_column(treeview, col, reverse):
     
     treeview.heading(col, command=lambda: sort_treeview_column(treeview, col, not reverse))
 
+hidden_columns = {}
+
 def show_column_menu(event):
     column_menu.delete(0, tk.END)
     for col in treeview["columns"]:
-        column_menu.add_command(label=f"Hide {col}", command=lambda _col=col: hide_column(_col))
+        if treeview.column(col, option="width") > 0:
+            column_menu.add_command(label=f"Hide {col}", command=lambda _col=col: hide_column(_col))
     column_menu.add_separator()
     for col in hidden_columns:
         column_menu.add_command(label=f"Show {col}", command=lambda _col=col: show_column(_col))
@@ -249,99 +256,128 @@ def calculate_days():
             row[database.get_column_names().index("days_between")] = days_between
             database.update_item(row[0], "days_between", days_between)  # Assuming the first column is the item ID
 
+def toggle_sidebar_form(event=None):
+    """Switch between Item and Expense entry forms."""
+    for widget in form_frame.winfo_children():
+        widget.destroy()
+    if sidebar_mode.get() == "Enter Items":
+        display_item_form()
+    else:
+        display_expense_form()
+
+def display_item_form():
+    """Display the item entry form."""
+    global entry_item_name, entry_bought_price, entry_sold_price
+    tk.Label(form_frame, text="Item:").pack(anchor="w")
+    entry_item_name = tk.Entry(form_frame)
+    entry_item_name.pack(fill=tk.X)
+    tk.Label(form_frame, text="Price:").pack(anchor="w")
+    entry_bought_price = tk.Entry(form_frame)
+    entry_bought_price.pack(fill=tk.X)
+    tk.Label(form_frame, text="Sold Price:").pack(anchor="w")
+    entry_sold_price = tk.Entry(form_frame)
+    entry_sold_price.pack(fill=tk.X)
+    tk.Button(form_frame, text="Add Item", command=add_data).pack(pady=5)
+
+def display_expense_form():
+    """Display the expense entry form."""
+    global entry_item_name, entry_bought_price, entry_sold_price
+    tk.Label(form_frame, text="Expense:").pack(anchor="w")
+    entry_item_name = tk.Entry(form_frame)
+    entry_item_name.pack(fill=tk.X)
+    tk.Label(form_frame, text="Price:").pack(anchor="w")
+    entry_bought_price = tk.Entry(form_frame)
+    entry_bought_price.pack(fill=tk.X)
+    tk.Label(form_frame, text="Sold Price:").pack(anchor="w")
+    entry_sold_price = tk.Entry(form_frame)
+    entry_sold_price.pack(fill=tk.X)
+    tk.Button(form_frame, text="Add Expense", command=add_expenditure).pack(pady=5)
+
+def toggle_main_view():
+    """Switch between table view and graph view."""
+    global graph_view
+    if graph_view:
+        graph_view.pack_forget()
+        treeview.pack(fill=tk.BOTH, expand=True)
+        graph_view = None
+        toggle_button.config(text="Switch to Graph")
+    else:
+        treeview.pack_forget()
+        graph_view = tk.Label(main_content_frame, text="GRAPH", bg="white", font=("Arial", 14))
+        graph_view.pack(expand=True)
+        toggle_button.config(text="Switch to Table")
+
+def on_backspace(event):
+    selected_item = treeview.selection()
+    if selected_item:
+        delete_item()
+
+# Main Application
 
 root = tk.Tk()
 root.title("Resell Tracker")
-root.geometry("800x600")
+root.geometry("1200x600")  # Adjusted window size
 
-# Create a menu bar
-menu_bar = tk.Menu(root)
+# --- Sidebar (Left Panel) ---
+sidebar_frame = tk.Frame(root, width=250, bg='gray', padx=5, pady=5)
+sidebar_frame.pack(side=tk.LEFT, fill=tk.Y)
 
-# Create a "File" menu
-file_menu = tk.Menu(menu_bar, tearoff=0)
-file_menu.add_command(label="Load Data", command=load_data)
-file_menu.add_separator()
-file_menu.add_command(label="Exit", command=root.quit)
-menu_bar.add_cascade(label="File", menu=file_menu)
+# Profit, Debt, Expenses Display
+stats_frame = tk.Frame(sidebar_frame, bg="white", padx=10, pady=10)
+stats_frame.pack(fill=tk.X, pady=5)
+label_total_profit = tk.Label(stats_frame, text="Profit:")
+label_total_profit.pack(anchor="w")
+label_total_debt = tk.Label(stats_frame, text="Debt:")
+label_total_debt.pack(anchor="w")
+tk.Label(stats_frame, text="Expenses:").pack(anchor="w")
 
-# Create a "Tools" menu
-tools_menu = tk.Menu(menu_bar, tearoff=0)
-tools_menu.add_command(label="Add Item", command=add_data)
-tools_menu.add_command(label="Delete Item", command=delete_item)
-tools_menu.add_command(label="Add Expenditure", command=add_expenditure)  # Add Expenditure option
-menu_bar.add_cascade(label="Tools", menu=tools_menu)
+# Sidebar Mode Selection (Dropdown)
+sidebar_mode = tk.StringVar(value="Enter Items")
+sidebar_mode_dropdown = ttk.Combobox(sidebar_frame, textvariable=sidebar_mode, values=["Enter Items", "Enter Expenses"])
+sidebar_mode_dropdown.pack(fill=tk.X, pady=5)
+sidebar_mode_dropdown.bind("<<ComboboxSelected>>", toggle_sidebar_form)
 
-# Add the menu bar to the root window
-root.config(menu=menu_bar)
+# Form Frame (Changes based on selection)
+form_frame = tk.Frame(sidebar_frame, bg="white", padx=10, pady=10)
+form_frame.pack(fill=tk.X, pady=5)
+display_item_form()  # Default form
 
-database.create_db()
+# --- Main Area ---
+main_frame = tk.Frame(root, bg="white", padx=5, pady=5)
+main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-frame_item_name = tk.Frame(root)
-frame_item_name.pack(pady=5)
+# Top Navigation Bar
+top_navbar = tk.Frame(main_frame, height=20, bg='grey', padx=5, pady=5)
+top_navbar.pack(side=tk.TOP, fill=tk.X)
+#tk.Label(top_navbar, text="File", bg="blue", fg="white").pack(side=tk.LEFT, padx=10)
 
-label_item_name = tk.Label(frame_item_name, text="Enter Item Name:")
-label_item_name.pack(side=tk.LEFT, padx=5)
+# Table & Graph Toggle Button
+toggle_button = tk.Button(top_navbar, text="Switch to Graph", command=toggle_main_view)
+toggle_button.pack(side=tk.RIGHT, padx=10)
 
-entry_item_name = tk.Entry(frame_item_name, width=50)
-entry_item_name.pack(side=tk.LEFT, padx=5)
+# Frame for displaying table or graph
+main_content_frame = tk.Frame(main_frame, bg="white")
+main_content_frame.pack(fill=tk.BOTH, expand=True)
 
-frame_bought_price = tk.Frame(root)
-frame_bought_price.pack(pady=5)
+# Create Treeview widget
+treeview = ttk.Treeview(main_content_frame, show="headings")
+treeview.pack(fill=tk.BOTH, expand=True)
 
-label_bought_price = tk.Label(frame_bought_price, text="Enter Bought Price / Expenses:")
-label_bought_price.pack(side=tk.LEFT, padx=5)
-
-entry_bought_price = tk.Entry(frame_bought_price, width=50)
-entry_bought_price.pack(side=tk.LEFT, padx=5)
-
-frame_sold_price = tk.Frame(root)
-frame_sold_price.pack(pady=5)
-
-label_sold_price = tk.Label(frame_sold_price, text="Enter Sold Price:")
-label_sold_price.pack(side=tk.LEFT, padx=5)
-
-entry_sold_price = tk.Entry(frame_sold_price, width=50)
-entry_sold_price.pack(side=tk.LEFT, padx=5)
-
-frame_buttons = tk.Frame(root)
-frame_buttons.pack(pady=10)
-
-button_add = tk.Button(frame_buttons, text="Add Item", command=add_data)
-button_add.pack(side=tk.LEFT, padx=10)
-
-button_load = tk.Button(frame_buttons, text="Load Data", command=load_data)
-button_load.pack(side=tk.LEFT, padx=10)
-
-button_delete = tk.Button(frame_buttons, text="Delete Item", command=delete_item)
-button_delete.pack(side=tk.LEFT, padx=10)
-
-button_add_expenditure = tk.Button(frame_buttons, text="Add Expenditure", command=add_expenditure)  # Add Expenditure button
-button_add_expenditure.pack(side=tk.LEFT, padx=10)
-
-frame_profit_debt = tk.Frame(root)
-frame_profit_debt.pack(pady=10)
-
-label_total_profit = tk.Label(frame_profit_debt, text="Total Profit: $0.00", font=("Arial", 14))
-label_total_profit.pack(side=tk.LEFT, padx=10)
-
-label_total_debt = tk.Label(frame_profit_debt, text="Total Debt: $0.00", font=("Arial", 14))
-label_total_debt.pack(side=tk.LEFT, padx=10)
-
-treeview = ttk.Treeview(root, show="headings")
-treeview.pack(padx=10, pady=10, fill="both", expand=False)
-
-treeview.tag_configure("not_sold", background="yellow2")
-treeview.tag_configure("profit", background="springgreen2")
-treeview.tag_configure("loss", background="brown1")
-
-treeview.bind('<Double-1>', on_item_edit)
-
-# Create a context menu for columns
+# Create column menu
 column_menu = tk.Menu(root, tearoff=0)
-hidden_columns = {}
 
-# Bind right-click to show the column menu
+# Bind double-click event to edit item
+treeview.bind("<Double-1>", on_item_edit)
+
+# Bind right-click event to show column menu
 treeview.bind("<Button-3>", show_column_menu)
 
+# Bind backspace key to delete selected row
+treeview.bind("<BackSpace>", on_backspace)
+
+# Default: Show Table View
 load_data()
+graph_view = None  # Will be created when toggled
+
+# Run the GUI
 root.mainloop()
