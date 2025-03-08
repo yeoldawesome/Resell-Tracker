@@ -4,6 +4,7 @@ from tkinter import messagebox
 from tkinter import simpledialog
 from datetime import datetime
 import database 
+import graph 
 
 # Function to add data to the database
 def add_data():
@@ -42,14 +43,10 @@ def add_data():
 def add_expenditure():
     item_name = entry_item_name.get()
     expenses = entry_bought_price.get()  # Use the bought price field for expenses
-    sold_price = entry_sold_price.get()
+    sold_price = 0  # Set sold_price to 0
 
     try:
         expenses = float(expenses)
-        if sold_price:
-            sold_price = float(sold_price)
-        else:
-            sold_price = None
     except ValueError:
         messagebox.showwarning("Input Error", "Please enter valid prices.")
         return
@@ -61,14 +58,11 @@ def add_expenditure():
         
         # Calculate profit for expenditure
         profit = -expenses  # Set profit as negative value of expenses
-        if sold_price is not None:
-            profit = sold_price - expenses
         
         database.add_item(item_name, 0, sold_price, expenses=expenses, profit=profit)  # Set bought_price to 0 and add expenses
         
         entry_item_name.delete(0, tk.END)
         entry_bought_price.delete(0, tk.END)
-        entry_sold_price.delete(0, tk.END)
         load_data()
     else:
         messagebox.showwarning("Input Error", "Please enter a valid item and expenses.")
@@ -111,6 +105,7 @@ def load_data():
         treeview.column("id", width=0, stretch=tk.NO)
         treeview.heading("id", text="", anchor=tk.W)
 
+    # Fetch data from the database
     data = database.view_data()
     for row in data:
         # Replace None values with empty strings
@@ -281,31 +276,37 @@ def display_item_form():
 
 def display_expense_form():
     """Display the expense entry form."""
-    global entry_item_name, entry_bought_price, entry_sold_price
+    global entry_item_name, entry_bought_price
     tk.Label(form_frame, text="Expense:").pack(anchor="w")
     entry_item_name = tk.Entry(form_frame)
     entry_item_name.pack(fill=tk.X)
     tk.Label(form_frame, text="Price:").pack(anchor="w")
     entry_bought_price = tk.Entry(form_frame)
     entry_bought_price.pack(fill=tk.X)
-    tk.Label(form_frame, text="Sold Price:").pack(anchor="w")
-    entry_sold_price = tk.Entry(form_frame)
-    entry_sold_price.pack(fill=tk.X)
     tk.Button(form_frame, text="Add Expense", command=add_expenditure).pack(pady=5)
 
 def toggle_main_view():
     """Switch between table view and graph view."""
-    global graph_view
+    global graph_view, graph_buttons_frame
     if graph_view:
         graph_view.pack_forget()
+        graph_buttons_frame.pack_forget()
         treeview.pack(fill=tk.BOTH, expand=True)
         graph_view = None
         toggle_button.config(text="Switch to Graph")
     else:
         treeview.pack_forget()
-        graph_view = tk.Label(main_content_frame, text="GRAPH", bg="white", font=("Arial", 14))
-        graph_view.pack(expand=True)
+        graph_buttons_frame.pack(fill=tk.X)
+        graph_view = tk.Frame(main_content_frame, bg="white")
+        graph_view.pack(fill=tk.BOTH, expand=True)
+        graph.graph_time_vs_price(graph_view)
         toggle_button.config(text="Switch to Table")
+
+def show_graph(graph_function):
+    """Display the selected graph."""
+    for widget in graph_view.winfo_children():
+        widget.destroy()
+    graph_function(graph_view)
 
 def on_backspace(event):
     selected_item = treeview.selection()
@@ -322,18 +323,17 @@ root.geometry("1200x600")  # Adjusted window size
 sidebar_frame = tk.Frame(root, width=250, bg='gray', padx=5, pady=5)
 sidebar_frame.pack(side=tk.LEFT, fill=tk.Y)
 
-# Profit, Debt, Expenses Display
+# Profit, Debt Display
 stats_frame = tk.Frame(sidebar_frame, bg="white", padx=10, pady=10)
 stats_frame.pack(fill=tk.X, pady=5)
 label_total_profit = tk.Label(stats_frame, text="Profit:")
 label_total_profit.pack(anchor="w")
 label_total_debt = tk.Label(stats_frame, text="Debt:")
 label_total_debt.pack(anchor="w")
-tk.Label(stats_frame, text="Expenses:").pack(anchor="w")
 
 # Sidebar Mode Selection (Dropdown)
 sidebar_mode = tk.StringVar(value="Enter Items")
-sidebar_mode_dropdown = ttk.Combobox(sidebar_frame, textvariable=sidebar_mode, values=["Enter Items", "Enter Expenses"])
+sidebar_mode_dropdown = ttk.Combobox(sidebar_frame, textvariable=sidebar_mode, values=["Enter Item", "Enter Buisness Expenses"])
 sidebar_mode_dropdown.pack(fill=tk.X, pady=5)
 sidebar_mode_dropdown.bind("<<ComboboxSelected>>", toggle_sidebar_form)
 
@@ -379,5 +379,16 @@ treeview.bind("<BackSpace>", on_backspace)
 load_data()
 graph_view = None  # Will be created when toggled
 
-# Run the GUI
+# Frame for graph buttons
+graph_buttons_frame = tk.Frame(main_content_frame, bg="lightgrey")
+
+btn_profit_time = tk.Button(graph_buttons_frame, text="Profit Over Time", command=lambda: show_graph(graph.graph_profit_time))
+btn_profit_time.pack(side=tk.LEFT, padx=5, pady=5)
+
+btn_time_vs_price = tk.Button(graph_buttons_frame, text="Time vs Price", command=lambda: show_graph(graph.graph_time_vs_price))
+btn_time_vs_price.pack(side=tk.LEFT, padx=5, pady=5)
+
+btn_price_profit = tk.Button(graph_buttons_frame, text="Price vs Profit", command=lambda: show_graph(graph.graph_price_profit))
+btn_price_profit.pack(side=tk.LEFT, padx=5, pady=5)
+
 root.mainloop()

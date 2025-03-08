@@ -3,3 +3,5 @@ gross profit DONE
 buisness related expenses DONE 
 expenses per item to flip like fixing cost DONE
 Pretier gui DONE ISH 
+use matplot for the graphs DONE ISH
+Fix sort by thing 
